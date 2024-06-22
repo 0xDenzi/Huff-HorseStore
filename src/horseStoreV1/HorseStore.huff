@@ -1,0 +1,86 @@
+// send calldata -> function dispatch -> function 
+
+// takes and returns are in respect to stack
+// huffc src/horseStoreV1/HorseStore.huff -b
+// 60008060093d393df3 this is the contract creation bytecode
+// 60018060093d393df35f after adding 0x00, 5f is PUSH0
+
+
+/* Interface */
+#define function updateHorseNumber(uint256) nonpayable returns()
+#define function readNumberOfHorses() view returns(uint256)
+
+#define constant NUMBER_OF_HORSES_STORAGE_SLOT = FREE_STORAGE_POINTER() // 0
+
+#define macro MAIN() = takes(0) returns(0) {
+
+    // 0x00                // [0]
+
+    // calldataload        // [calldata]
+
+    // How do we cut down the calldata -> function selector?
+    // We need to shift 28 bytes (224 bits) to the right to get the function selector from the calldata which is 32 bytes
+    // So we count the digits we do not need which is 56 we divide by 2 to get bytes so 56/2 => 28 bytes and then we 28 * 8 to get 224 bites
+
+    // SHR opcode
+    // 0x0102 (bytes)
+    // 1 bytes = 8 bits
+    // 0b 1 00000010 (binary)
+
+    // 0xF102 (bytes)
+    // 1 bytes = 8 bits
+    // 0b 11110001 00000010 (binary)
+
+    // 0b100000010 >> 2 (shift right 2 bits) -> 0b01000000 -> 0x40 (hex)
+    // 0b100000010 >> 4 (shift right 4 bits) -> 0b010000 -> 0x10 (hex) -> 16 (dec)
+
+    // cast --to-base 224 hex 
+
+    // 0xe0              // TOP [0xe0 , calldata (32 bytes)] BOTTOM
+
+    // shr               // TOP [calldata (funciton selector)] BOTTOM
+
+    0x00 calldataload 0xe0 shr // TOP [calldata (funciton selector)] BOTTOM
+
+    // Jump -> function data associated with the selector
+    // If function selector == updateHorseNumber -> jump to that code // 0xcdfead2e
+    // If function selector == readHorseNumber -> jump to that code // 0xe026c017
+
+    dup1                                // [function_selector, function_selector]
+    // updateHorseNumber selector, 0xcdfead2e
+    __FUNC_SIG(updateHorseNumber)       // [0xcdfead2e, function_selector, function_selector]
+    eq                                  // [true_if_func_selector_matches, function_selector]
+    // jump to updateHorseNumber code if true
+    updateJump                          // [updateHorseNumberProgramCounter, true_if_func_selector_matches, function_selector]
+    jumpi                               // [function_selector]
+
+    // readNumberOfHorses selector, 0xe026c017
+    __FUNC_SIG(readNumberOfHorses)      // [0xe026c017, function_selector]
+    eq                                  // [true_if_func_selector_matches]
+    // jump to readNumberOfHorses code if true
+    readJump                            // [readJump, true_if_func_selector_matches]
+    jumpi                               // [] empty
+
+    0x00 0x00 revert                    // [0,0] -> revert -> [] empty
+
+    updateJump:
+        SET_NUMBER_OF_HORSES() // jumpdest
+    readJump:
+        GET_NUMBER_OF_HORSES()
+
+}
+
+
+#define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0) {
+    // 1.Get the value to store from calldata
+    0x04                                        // [4]
+    calldataload                                // [calldata - function selector]
+    // 2.Give it a storage slot
+    [NUMBER_OF_HORSES_STORAGE_SLOT]             // [0x00, value]
+    // 3.sstore opcode
+    sstore
+    stop                                        // stops the transaction
+    
+}
+
+#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0) {}

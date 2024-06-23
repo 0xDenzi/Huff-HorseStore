@@ -73,14 +73,25 @@
 
 #define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0) {
     // 1.Get the value to store from calldata
-    0x04                                        // [4]
-    calldataload                                // [calldata - function selector]
+    0x04                                        // [4, function_selector]
+    calldataload                                // [calldata - function selector, function_selector]
     // 2.Give it a storage slot
-    [NUMBER_OF_HORSES_STORAGE_SLOT]             // [0x00, value]
+    [NUMBER_OF_HORSES_STORAGE_SLOT]             // [0x00, value, function_selector]
     // 3.sstore opcode
     sstore
     stop                                        // stops the transaction
     
 }
 
-#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0) {}
+#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0) {
+    // 1.Get the storage slot
+    [NUMBER_OF_HORSES_STORAGE_SLOT]             // [key]
+    sload                                       // [value]
+    // 2.Load the value from storage to memory
+    0x00                                        // [0x00 (offset), value]
+    mstore                                      // stack: [] // memory: {value}
+    // 3.Return the value
+    // 0x20 == 32 bytes // so its the size of the return data, 0x00 is the memory index
+    0x20 0x00
+    return
+}
